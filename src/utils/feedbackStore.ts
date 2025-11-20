@@ -1,45 +1,44 @@
-// src/lib/feedback-store.ts
+// src/utils/feedbackStore.ts
 import { nanoid } from "nanoid";
 import { readStorage, writeStorage } from "../lib/storage";
 import type { Feedback } from "../types/data";
 
 const KEY = "feedback";
 
-function read(): Feedback[] {
-  return readStorage<Feedback[]>(KEY, []);
+export function listFeedback(): Feedback[] {
+  return readStorage(KEY, []);
 }
 
-function write(items: Feedback[]) {
-  writeStorage(KEY, items);
-}
-
-/** Returns all feedback for candidate sorted newest first */
 export function listFeedbackByCandidate(candidateId: string): Feedback[] {
-  return read().filter(f => f.candidateId === candidateId).sort((a,b) => b.createdAt.localeCompare(a.createdAt));
+  return listFeedback().filter(f => f.candidateId === candidateId);
 }
 
-/**
- * createFeedback enforces that current session role === "panelist"
- * (also UI should hide button; enforce here for safety)
- */
-export function createFeedback(payload: Omit<Feedback, "id" | "createdAt" | "authorRole">) {
-  const sessionRaw = localStorage.getItem("user");
-  const session = sessionRaw ? JSON.parse(sessionRaw) : null;
-  if (!session || session.role !== "panelist") {
-    throw new Error("Only panelists can submit feedback");
-  }
-
-  const items = read();
-  let id = nanoid();
-  while (items.find(i => i.id === id)) id = nanoid();
-
-  const rec: Feedback = {
-    id,
+export function createFeedback(data: Omit<Feedback, "id" | "createdAt">): Feedback {
+  const all = listFeedback();
+  const record: Feedback = {
+    id: nanoid(),
     createdAt: new Date().toISOString(),
-    authorRole: session.role,
-    ...payload,
+    ...data,
   };
-  items.push(rec);
-  write(items);
-  return rec;
+
+  all.push(record);
+  writeStorage(KEY, all);
+  return record;
+}
+
+export function updateFeedback(id: string, patch: Partial<Feedback>) {
+  const all = listFeedback();
+  const idx = all.findIndex(f => f.id === id);
+  if (idx === -1) return undefined;
+
+  all[idx] = { ...all[idx], ...patch };
+  writeStorage(KEY, all);
+  return all[idx];
+}
+
+export function deleteFeedback(id: string) {
+  const all = listFeedback();
+  const filtered = all.filter(f => f.id !== id);
+  writeStorage(KEY, filtered);
+  return true;
 }

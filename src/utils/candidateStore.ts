@@ -6,47 +6,39 @@ import type { Candidate } from "../types/data";
 /** Keys */
 const KEY = "candidates";
 
-/** Helpers */
-function read(): Candidate[] {
-  return readStorage<Candidate[]>(KEY, []);
-}
-
-function write(items: Candidate[]) {
-  writeStorage(KEY, items);
-}
-
 export function listCandidates(): Candidate[] {
-  return read();
+  return readStorage(KEY, []);
 }
-
 export function getCandidate(id: string): Candidate | undefined {
-  return read().find(c => c.id === id);
+  const all = listCandidates();
+  const candidate = all.find(c => c.id === id);
+  return candidate;
 }
 
-export function createCandidate(payload: Omit<Candidate, "id">): Candidate {
-  const items = read();
-  // generate unique id with collision detection
-  let id = nanoid();
-  while (items.find(i => i.id === id)) id = nanoid();
-
-  const newC: Candidate = { ...payload, id };
-  items.unshift(newC); // add to front
-  write(items);
-  return newC;
+export function createCandidate(data: Omit<Candidate, "id">): Candidate {
+  const all = listCandidates();
+  const record: Candidate = { ...data, id: nanoid() };
+  all.push(record);
+  writeStorage(KEY, all);
+  return record;
 }
 
-export function updateCandidate(id: string, patch: Partial<Candidate>): Candidate | undefined {
-  const items = read();
-  const idx = items.findIndex(c => c.id === id);
+
+export function updateCandidate(id: string, patch: Partial<Candidate>) {
+  const all = listCandidates();
+  const idx = all.findIndex(c => c.id === id);
   if (idx === -1) return undefined;
-  const updated = { ...items[idx], ...patch };
-  items[idx] = updated;
-  write(items);
-  return updated;
+
+  all[idx] = { ...all[idx], ...patch };
+  writeStorage(KEY, all);
+  return all[idx];
 }
 
 export function deleteCandidate(id: string) {
-  const items = read().filter(i => i.id !== id);
-  write(items);
+  const all = listCandidates();
+  const idx = all.findIndex(c=> c.id === id);
+  if(idx === -1) return undefined;
+  const items = all.filter(i => i.id !== id);
+  writeStorage(KEY, items);
   return true;
 }

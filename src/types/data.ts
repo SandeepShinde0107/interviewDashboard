@@ -2,12 +2,12 @@
 export type CandidateStatus = "scheduled" | "completed" | "cancelled";
 
 export type Candidate = {
+  designation: string;
   id: string;
   firstName: string;
   lastName: string;
   email?: string;
   department?: string;
-  role?: string; // business role (not auth role)
   status: CandidateStatus;
 };
 

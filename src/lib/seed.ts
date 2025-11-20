@@ -1,30 +1,74 @@
 // src/lib/seed.ts
-import { readStorage, writeStorage } from "./storage.ts";
+import { writeStorage } from "./storage";
 import { nanoid } from "nanoid";
-import type { Candidate, Interview, Feedback, UserSession } from "../types/data.ts";
+import type { Candidate, Interview } from "../types/data";
+import type { Member } from "../utils/memberStore";
 
 export function ensureSeed() {
-  const has = localStorage.getItem("candidates");
-  if (has) return; // already seeded
+  // console.log("%c[SEED] Running ensureSeed()", "color: #4ade80");
+  let members: Member[] = [];
 
-  const c1: Candidate = { id: nanoid(), firstName: "Alice", lastName: "Khan", email: "alice@example.com", department: "Engineering", role: "FE", status: "scheduled" };
-  const c2: Candidate = { id: nanoid(), firstName: "Bob", lastName: "Mehta", email: "bob@example.com", department: "Data", role: "DS", status: "completed" };
-  const c3: Candidate = { id: nanoid(), firstName: "Cara", lastName: "Patel", email: "cara@example.com", department: "Product", role: "PM", status: "cancelled" };
+  try {
+    const raw = localStorage.getItem("members");
+    members = raw ? JSON.parse(raw) : [];
+    if (!Array.isArray(members)) members = [];
+  } catch {
+    members = [];
+  }
 
-  const interviews: Interview[] = [
-    { id: nanoid(), candidateId: c1.id, date: new Date().toISOString(), completed: false },
-    { id: nanoid(), candidateId: c2.id, date: new Date(Date.now() - 86400000).toISOString(), completed: true },
-  ];
+  if (members.length === 0) {
+    console.log("[SEED] Seeding members...");
 
-  const feedback: Feedback[] = [
-    { id: nanoid(), candidateId: c2.id, authorRole: "panelist", score: 4, strengths: "Good problem solving", improvements: "Communication", createdAt: new Date().toISOString() }
-  ];
+    members = [
+      { id: "u1", name: "Bob Martin", email: "bob@example.com", role: "panelist" },
+      { id: "u2", name: "Sarah Kim", email: "sarah@example.com", role: "ta_member" },
+      { id: "u3", name: "Emily S", email: "emilys@example.com", role: "admin" },
+    ];
 
-  writeStorage("candidates", [c1, c2, c3]);
-  writeStorage("interviews", interviews);
-  writeStorage("feedback", feedback);
+    writeStorage("members", members);
+  }
 
-  // Optionally seed a default user session (comment out in production)
-  const user: UserSession = { id: nanoid(), username: "admin", role: "admin" };
-  writeStorage("user", user);
+  try {
+    members = JSON.parse(localStorage.getItem("members") || "[]");
+  } catch {
+    members = [];
+  }
+
+  const panelists = members.filter(m => m.role === "panelist");
+
+  // console.log("[SEED] Syncing interviewers:", panelists);
+
+  writeStorage("interviewers", panelists);
+
+
+  if (!localStorage.getItem("candidates")) {
+    console.log("[SEED] Seeding candidates...");
+    const c1: Candidate = {
+      id: nanoid(),
+      firstName: "Alice",
+      lastName: "Khan",
+      email: "alice@example.com",
+      department: "Engineering",
+      designation: "FE",
+      status: "scheduled",
+    };
+
+    writeStorage("candidates", [c1]);
+
+    const interviews: Interview[] = [
+      { id: nanoid(), candidateId: c1.id,interviewerId:"u1", date: new Date().toISOString(), completed: false }
+    ];
+    writeStorage("interviews", interviews);
+    writeStorage("feedback", []);
+  }
+
+  if (!localStorage.getItem("interviews")) {
+    console.log("[SEED] Fixing interviews...");
+    writeStorage("interviews", []);
+  }
+
+  if (!localStorage.getItem("feedback")) {
+    console.log("[SEED] Fixing feedback...");
+    writeStorage("feedback", []);
+  }
 }

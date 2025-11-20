@@ -39,3 +39,23 @@ export function updateInterview(id: string, patch: Partial<Interview>) {
   write(items);
   return items[idx];
 }
+
+export function deleteInterview(id:string){
+  const all = read();
+  const idx = all.findIndex(i => i.id === id);
+  if (idx === -1) return undefined;
+  const removed = all.splice(idx, 1)[0];
+  write(all);
+  return removed;
+}
+
+export function updateInterviewByCandidate(candidateId:string, updates: Partial<Interview>) {
+    const interviews = read();
+    const updated = interviews.map((iv) =>
+        iv.candidateId === candidateId
+            ? { ...iv, ...updates }
+            : iv
+    );
+
+    localStorage.setItem("interviews", JSON.stringify(updated));
+}

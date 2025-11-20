@@ -1,20 +1,20 @@
-import React, { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { parseISO, isWithinInterval, startOfWeek, endOfWeek } from "date-fns";
 import { useNavigate, Link } from "react-router-dom";
-import { useAuth } from "../context/AuthContext"; // adjust path if needed
-import KPICard from "../components/ui/KPICard"; // your KPICard component
-import { KPIChart } from "../components/ui/KPIChart"; // grouped bar chart component (see below if missing)
-import type { JSX } from "react";
+import { useAuth } from "../context/AuthContext";
+import KPICard from "../components/ui/KPICard";
+import { useRef } from "react";
 import {
   listCandidates,
 } from "../utils/candidateStore";
 import {
   listAllInterviews,
-  listInterviewsByCandidate,
 } from "../utils/interviewStore";
 import { listFeedbackByCandidate } from "../utils/feedbackStore";
-
+import { listInterviewers } from "../utils/useHelpers";
 import { Calendar, Users, UserX, ClipboardCheck, Clock, TrendingUp } from "lucide-react";
+import "../App.css";
+
 
 type Candidate = {
   id: string;
@@ -22,26 +22,23 @@ type Candidate = {
   lastName: string;
   status: "scheduled" | "completed" | "cancelled";
   department?: string;
-  role?: string;
+  designation?: string;
 };
 
 type InterviewItem = {
   id: string;
   candidateId: string;
   interviewerId?: string;
-  date: string; // ISO
+  date: string;
   completed: boolean;
 };
 
-export default function DashboardPage(): JSX.Element {
+export default function DashboardPage() {
   const { user, logout } = useAuth();
   const navigate = useNavigate();
-
   const [loading, setLoading] = useState(true);
-
-  // Filters
-  const [interviewerFilter, setInterviewerFilter] = useState<string>("all"); // interviewerId or "all"
-  const [roleFilter, setRoleFilter] = useState<string>("all"); // candidate.role or "all"
+  const [interviewerFilter, setInterviewerFilter] = useState<string>("all");
+  const [roleFilter, setRoleFilter] = useState<string>("all");
   const [dateFrom, setDateFrom] = useState<string>(() => {
     const d = new Date();
     d.setDate(d.getDate() - 7);
@@ -49,11 +46,11 @@ export default function DashboardPage(): JSX.Element {
   });
   const [dateTo, setDateTo] = useState<string>(() => new Date().toISOString().slice(0, 10));
 
-  // Raw data read from stores
   const [candidates, setCandidates] = useState<Candidate[]>([]);
   const [interviews, setInterviews] = useState<InterviewItem[]>([]);
+  const fromRef = useRef<HTMLInputElement>(null);
+  const toRef = useRef<HTMLInputElement>(null);
 
-  // load data
   const reload = () => {
     setLoading(true);
     try {
@@ -68,8 +65,6 @@ export default function DashboardPage(): JSX.Element {
 
   useEffect(() => {
     reload();
-
-    // Listen to localStorage changes (other tabs or store helpers that write localStorage directly)
     const onStorage = (e: StorageEvent) => {
       if (!e.key) return;
       if (["candidates", "interviews", "feedback", "user"].includes(e.key)) {
@@ -80,56 +75,54 @@ export default function DashboardPage(): JSX.Element {
     return () => window.removeEventListener("storage", onStorage);
   }, []);
 
-  // Build interviewer options (unique interviewerId values from interviews)
-  const interviewerOptions = useMemo(() => {
-    const ids = Array.from(new Set(interviews.map((i) => i.interviewerId).filter(Boolean)));
-    return ids;
-  }, [interviews]);
-
-  // Helper: map candidate id -> candidate
   const candidateMap = useMemo(() => {
     const m = new Map<string, Candidate>();
     for (const c of candidates) m.set(c.id, c);
     return m;
   }, [candidates]);
 
-  // Filtered interviews for the date range + interviewer filter + role filter (role applies to the candidate)
   const filteredInterviews = useMemo(() => {
     const from = parseISO(`${dateFrom}T00:00:00`);
     const to = parseISO(`${dateTo}T23:59:59`);
 
     return interviews.filter((iv) => {
-      // date range
+
       const ivDate = parseISO(iv.date);
       if (!isWithinInterval(ivDate, { start: from, end: to })) return false;
 
-      // interviewer filter
-      if (interviewerFilter !== "all" && iv.interviewerId !== interviewerFilter) return false;
-
-      // role filter via candidate
-      if (roleFilter !== "all") {
-        const c = candidateMap.get(iv.candidateId);
-        if (!c) return false;
-        if ((c.role ?? "—") !== roleFilter) return false;
+      if (interviewerFilter !== "all") {
+        if (iv.interviewerId !== interviewerFilter) return false;
       }
 
+      if (roleFilter !== "all") {
+        const cand = candidateMap.get(iv.candidateId);
+        if (!cand) return false;
+        if (cand.designation !== roleFilter) return false;
+      }
       return true;
     });
-  }, [interviews, dateFrom, dateTo, interviewerFilter, roleFilter, candidateMap]);
+  }, [
+    interviews,
+    dateFrom,
+    dateTo,
+    interviewerFilter,
+    roleFilter,
+    candidateMap
+  ]);
 
-  // KPIs
-  const totalCandidates = candidates.length;
 
-  // Interviews this week: count of candidates with status === "scheduled" and whose interviews fall into current week? 
-  // Per your spec earlier: "Interviews This Week: Count of candidates with 'scheduled' status"
+  const totalCandidates = useMemo(() => {
+    const ids = new Set(filteredInterviews.map(iv => iv.candidateId));
+    return ids.size;
+  }, [filteredInterviews]);
+
+
   const interviewsThisWeek = useMemo(() => {
-    // If you want strict "this calendar week", use startOfWeek/endOfWeek
-    const start = startOfWeek(new Date(), { weekStartsOn: 1 }); // Monday start (adjust if needed)
+    const start = startOfWeek(new Date(), { weekStartsOn: 1 });
     const end = endOfWeek(new Date(), { weekStartsOn: 1 });
 
-    // count unique candidate ids that have interview date within this week and candidate.status === 'scheduled'
     const candidateIds = new Set<string>();
-    for (const iv of interviews) {
+    for (const iv of filteredInterviews) {
       const d = parseISO(iv.date);
       if (isWithinInterval(d, { start, end })) {
         const cand = candidateMap.get(iv.candidateId);
@@ -137,60 +130,60 @@ export default function DashboardPage(): JSX.Element {
       }
     }
     return candidateIds.size;
-  }, [interviews, candidateMap]);
+  }, [filteredInterviews, candidateMap]);
 
-  // Average feedback score from all feedback entries
+
   const averageFeedbackScore = useMemo(() => {
-    // read all feedback and compute average
-    // We'll call listFeedbackByCandidate for each candidate and sum
     let total = 0;
     let count = 0;
-    for (const c of candidates) {
-      const f = listFeedbackByCandidate(c.id); // returns array
-      for (const item of f) {
-        total += item.score;
+
+    const involvedCandidates = new Set(filteredInterviews.map(iv => iv.candidateId));
+
+    for (const id of involvedCandidates) {
+      const fb = listFeedbackByCandidate(id);
+      for (const f of fb) {
+        total += f.score;
         count++;
       }
     }
+
     return count === 0 ? "0.0" : (total / count).toFixed(2);
-  }, [candidates]);
+  }, [filteredInterviews]);
 
-  // No-shows: count candidates with status === "cancelled"
-  const noShows = useMemo(() => candidates.filter((c) => c.status === "cancelled").length, [candidates]);
 
-  // Completed interviews total (count of interview.completed === true)
-  const completedInterviews = useMemo(() => interviews.filter((iv) => iv.completed).length, [interviews]);
+  const noShows = useMemo(() => {
+    const ids = new Set(filteredInterviews.map(iv => iv.candidateId));
+    return candidates.filter(c => ids.has(c.id) && c.status === "cancelled").length;
+  }, [filteredInterviews, candidates]);
 
-  // Pending feedback: count of candidates with status === "scheduled" (assumed need feedback)
-  const pendingFeedback = useMemo(() => candidates.filter((c) => c.status === "scheduled").length, [candidates]);
+  const completedInterviews = useMemo(() => {
+    return filteredInterviews.filter(iv => iv.completed).length;
+  }, [filteredInterviews]);
 
-  // Build grouped chart data (grouped by date: completed, noShow, scheduled)
-  const chartData = useMemo(() => {
-    // We'll derive status per interview:
-    // if interview.completed -> completed
-    // else if candidate.status === "cancelled" -> no-show
-    // else scheduled
-    const map = new Map<string, { date: string; completed: number; noShow: number; scheduled: number }>();
-    for (const iv of filteredInterviews) {
-      const dateKey = iv.date.slice(0, 10); // YYYY-MM-DD
-      const cand = candidateMap.get(iv.candidateId);
-      const rec = map.get(dateKey) ?? { date: dateKey, completed: 0, noShow: 0, scheduled: 0 };
-      if (iv.completed) rec.completed += 1;
-      else if (cand && cand.status === "cancelled") rec.noShow += 1;
-      else rec.scheduled += 1;
-      map.set(dateKey, rec);
-    }
-    // Convert to array and sort oldest -> newest
-    return Array.from(map.values()).sort((a, b) => a.date.localeCompare(b.date));
-  }, [filteredInterviews, candidateMap]);
+  const pendingFeedback = useMemo(() => {
+    const ids = new Set(filteredInterviews.map(iv => iv.candidateId));
+    return candidates.filter(c => ids.has(c.id) && c.status === "scheduled").length;
+  }, [filteredInterviews, candidates]);
 
-  // Handler for logout
   const handleLogout = () => {
     logout();
     navigate("/");
+    // localStorage.clear();
   };
 
-  // loading state UI
+  // const members = listMembers();
+  type Interviewer = { id: string; name?: string; email?: string;[key: string]: any };
+  const interviewers = listInterviewers() as Interviewer[];
+  const interviewerOptions = interviewers.map(i => i.id);
+
+  const interviewerMap = useMemo(() => {
+    const m = new Map<string, Interviewer>();
+    for (const i of interviewers) {
+      if (i && typeof i.id === "string") m.set(i.id, i);
+    }
+    return m;
+  }, [interviewers]);
+
   if (loading) {
     return (
       <div className="p-6 text-gray-600">
@@ -201,50 +194,77 @@ export default function DashboardPage(): JSX.Element {
 
   return (
     <div className="min-h-screen bg-gray-900 text-gray-100 p-6">
-      {/* Header */}
       <div className="flex justify-between items-center mb-6">
         <div>
           <h1 className="text-2xl font-bold">Welcome, <span className="text-indigo-300">{user?.username}</span></h1>
-          <p className="text-sm text-gray-400 mt-1">Overview of interviews & candidates</p>
+          <p className="text-sm text-gray-400 mt-1">Overview of Interviews & Candidates</p>
         </div>
 
         <div className="flex items-center gap-4">
-          <div className="text-sm text-gray-300">Role: <span className="text-gray-100 ml-1">{user?.role}</span></div>
+          <div className="text-sm text-gray-300">Role: <span className="text-gray-100 ml-1">{(user?.role ?? "user").charAt(0).toUpperCase() + (user?.role ?? "user").slice(1)}</span></div>
           <button onClick={handleLogout} className="px-3 py-1 rounded bg-gray-800 hover:bg-gray-700 text-sm">Logout</button>
         </div>
       </div>
 
-      {/* Filters */}
       <div className="bg-gray-800 border border-gray-700 rounded p-4 mb-6 flex flex-wrap gap-4 items-end">
         <div>
-          <label className="block text-xs text-gray-400">Interviewer</label>
+          <label className="block text-xs text-white-400">Interviewer</label>
           <select value={interviewerFilter} onChange={(e) => setInterviewerFilter(e.target.value)} className="bg-gray-900 text-gray-200 px-3 py-2 rounded border border-gray-700">
             <option value="all">All</option>
-            {interviewerOptions.map((id) => (
-              <option key={id} value={id}>{id}</option>
-            ))}
+            {interviewerOptions.map((id) => {
+              const info = interviewerMap.get(id);
+              // console.log(info)
+              if (!info) return null;
+              return (
+                <option key={id} value={id}>
+                  {info.name}
+                </option>
+              )
+            })}
           </select>
         </div>
-
         <div>
-          <label className="block text-xs text-gray-400">Role</label>
-          <select value={roleFilter} onChange={(e) => setRoleFilter(e.target.value)} className="bg-gray-900 text-gray-200 px-3 py-2 rounded border border-gray-700">
+          <label className="block text-xs text-white-400">Role</label>
+          <select
+            value={roleFilter}
+            onChange={(e) => setRoleFilter(e.target.value)}
+            className="bg-gray-900 text-gray-200 px-3 py-2 rounded border border-gray-700"
+          >
             <option value="all">All</option>
-            {/* derive distinct roles from candidates */}
-            {Array.from(new Set(candidates.map(c => c.role).filter(Boolean))).map(r => (
+            {Array.from(new Set(candidates.map(c => c.designation).filter(Boolean))).map(r => (
               <option key={r} value={r!}>{r}</option>
             ))}
+
           </select>
         </div>
 
         <div>
-          <label className="block text-xs text-gray-400">From</label>
-          <input type="date" value={dateFrom} onChange={(e) => setDateFrom(e.target.value)} className="bg-gray-900 text-gray-200 px-3 py-2 rounded border border-gray-700" />
-        </div>
+          <label
+            className="block text-xs text-white-400 cursor-pointer"
+            onClick={() => fromRef.current?.showPicker()}
+          >
+            From
+          </label>
 
+          <input
+            ref={fromRef}
+            type="date"
+            value={dateFrom}
+            onFocus={() => fromRef.current?.showPicker()}
+            onClick={() => fromRef.current?.showPicker()}
+            onKeyDown={(e) => e.preventDefault()}   // prevents typing
+            onChange={(e) => setDateFrom(e.target.value)}
+            className="bg-gray-900 text-gray-200 px-3 py-2 rounded border border-gray-700 cursor-pointer date-white-icon"
+          />
+        </div>
         <div>
-          <label className="block text-xs text-gray-400">To</label>
-          <input type="date" value={dateTo} onChange={(e) => setDateTo(e.target.value)} className="bg-gray-900 text-gray-200 px-3 py-2 rounded border border-gray-700" />
+          <label 
+            className="block text-xs text-white-400 cursor-pointer" 
+            onClick={()=> fromRef.current?.showPicker()}>To</label>
+          <input ref={toRef} type="date" value={dateTo} onFocus={()=> toRef.current?.showPicker()} 
+            onClick={()=>  toRef.current?.showPicker()}
+          onChange={(e) => setDateTo(e.target.value)} 
+          className="bg-gray-900 text-gray-200 px-3 py-2 rounded border border-gray-700 cursor-pointer date-white-icon" />
         </div>
       </div>
 
@@ -261,16 +281,13 @@ export default function DashboardPage(): JSX.Element {
         <KPICard title="Pending Feedback" value={pendingFeedback} icon={<Clock size={28} />} />
       </div>
 
-      {/* Chart */}
-      {/* <KPIChart data={chartData} /> */}
-
       {/* Quick actions */}
       <div className="mt-8">
         <h3 className="text-lg font-semibold mb-3">Quick Actions</h3>
         <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
           {user?.role === "admin" && (
             <Link to="/candidates" className="p-4 border border-gray-700 rounded hover:bg-gray-800 transition">
-              <div className="font-medium">Manage Candidates</div>
+              <div className="font-medium">View / Manage Candidates</div>
               <div className="text-sm text-gray-400">View and manage all candidates</div>
             </Link>
           )}
@@ -288,11 +305,6 @@ export default function DashboardPage(): JSX.Element {
               <div className="text-sm text-gray-400">Provide feedback for interviews</div>
             </Link>
           )}
-
-          <Link to="/candidates" className="p-4 border border-gray-700 rounded hover:bg-gray-800 transition">
-            <div className="font-medium">View Candidates</div>
-            <div className="text-sm text-gray-400">Browse candidate profiles</div>
-          </Link>
 
           {user?.role === "admin" && (
             <Link to="/roles" className="p-4 border border-gray-700 rounded hover:bg-gray-800 transition">
