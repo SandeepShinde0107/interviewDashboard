@@ -1,13 +1,12 @@
-// src/lib/types.ts
 export type CandidateStatus = "scheduled" | "completed" | "cancelled";
 
 export type Candidate = {
-  designation: string;
   id: string;
   firstName: string;
   lastName: string;
   email?: string;
   department?: string;
+  designation: string;
   status: CandidateStatus;
 };
 
@@ -15,7 +14,7 @@ export type Interview = {
   id: string;
   candidateId: string;
   interviewerId?: string;
-  date: string; // ISO
+  date: string;
   completed: boolean;
   notes?: string;
 };
@@ -23,8 +22,8 @@ export type Interview = {
 export type Feedback = {
   id: string;
   candidateId: string;
-  authorRole?: string; // who submitted
-  score: number; // 1..5
+  authorRole?: string;
+  score: number;
   strengths?: string;
   improvements?: string;
   createdAt: string;

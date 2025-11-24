@@ -56,6 +56,5 @@ export function updateInterviewByCandidate(candidateId:string, updates: Partial<
             ? { ...iv, ...updates }
             : iv
     );
-
     localStorage.setItem("interviews", JSON.stringify(updated));
 }

@@ -19,10 +19,8 @@ export default function InterviewSchedule({
 }: Props) {
 
     const [editing, setEditing] = useState<any | null>(null);
-
     const interviewers = listInterviewers() as Array<{ id: string; name: string }>;
     const interviewMap = new Map(interviewers.map(i => [i.id, i]));
-
     return (
         <div>
             {/* Header */}
@@ -35,7 +33,6 @@ export default function InterviewSchedule({
                     No interviews scheduled.
                 </div>
             )}
-
             <div className="space-y-3">
                 {interviews.map((iv) => {
                     const dateFormatted = parseISO(iv.date).toLocaleString();
@@ -55,13 +52,12 @@ export default function InterviewSchedule({
 
                             <div className="flex items-center gap-3">
                                 <span
-                                    className={`text-sm ${
-                                        candidateStatus === "completed"
+                                    className={`text-sm ${candidateStatus === "completed"
                                             ? "text-green-300"
                                             : candidateStatus === "cancelled"
-                                            ? "text-red-300"
-                                            : "text-blue-300"
-                                    }`}
+                                                ? "text-red-300"
+                                                : "text-blue-300"
+                                        }`}
                                 >
                                     {candidateStatus.charAt(0).toUpperCase() + candidateStatus.slice(1)}
                                 </span>
@@ -87,14 +83,13 @@ export default function InterviewSchedule({
                 })}
             </div>
 
-            {/* ✔ Edit modal OUTSIDE the loop */}
             {editing && (
                 <EditInterviewModal
                     interview={editing}
                     onClose={() => setEditing(null)}
                     onSuccess={() => {
                         setEditing(null);
-                        onRefresh?.(); // not onAddInterview
+                        onRefresh?.();
                     }}
                 />
             )}

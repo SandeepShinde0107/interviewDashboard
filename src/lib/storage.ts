@@ -1,4 +1,3 @@
-// src/lib/storage.ts
 export function readStorage<T>(key: string, fallback: T): T {
   try {
     const raw = localStorage.getItem(key);

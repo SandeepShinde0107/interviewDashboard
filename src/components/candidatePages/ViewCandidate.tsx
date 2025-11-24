@@ -13,7 +13,7 @@ import {
     listFeedbackByCandidate,
 } from "../../utils/feedbackStore";
 import { ArrowLeft } from "lucide-react";
-import InterviewSchedule from "../interviewPages/InterviewSchedule";
+import InterviewSchedule from "../interviewPages/ScheduledInterviews";
 import { deleteInterview } from "../../utils/interviewStore";
 import FeedbackSection from "../feedback/FeedbackSection";
 
