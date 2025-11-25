@@ -2,6 +2,15 @@ import { useForm } from "react-hook-form";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "../context/AuthContext";
 
+// Test credentials for DummyJSON API
+export const TEST_CREDENTIALS = {
+  username: "kminchelle",
+  password: "0lelplR",
+  // Alternative credentials:
+  // username: "emilys",
+  // password: "emilyspass"
+};
+
 type LoginFormValues = {
   username: string;
   password: string;
